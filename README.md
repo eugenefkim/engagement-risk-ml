@@ -139,10 +139,7 @@ raw, high-dimensional inputs (pixels, text, audio) where feature
 engineering is impractical. With 12 hand-engineered behavioral features 
 and ~80,000 rows, there is no representational complexity for a neural 
 network to exploit that XGBoost cannot already capture more efficiently 
-through gradient boosting. Adding a neural network to this project would 
-demonstrate familiarity with the technique but would not improve on 
-XGBoost's results — and knowing when additional model complexity is 
-unlikely to help is as important a skill as knowing how to implement it.
+through gradient boosting.
 
 ---
 
