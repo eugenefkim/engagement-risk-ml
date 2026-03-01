@@ -34,7 +34,7 @@ engagement-risk-ml/
 │   ├── 02_labeling_and_features.ipynb  # Snapshot labeling and feature engineering
 │   ├── 03_modeling_logistic_regression.ipynb  # Baseline model, lift analysis, multicollinearity
 │   ├── 04_threshold_tuning_and_regularization.ipynb  # Threshold sweep, L1/L2/ElasticNet comparison
-│   └── 05_tree_based_models.ipynb  # Random Forest, XGBoost, model comparison, stacking analysis
+│   └── 05_tree_based_models_and_model_selection.ipynb  # Random Forest, XGBoost, model comparison, stacking analysis
 │
 ├── reports/                        # Figures and analysis outputs
 │
@@ -169,7 +169,7 @@ Execute notebooks in order — each notebook persists intermediate outputs to `d
 02_labeling_and_features.ipynb
 03_modeling_logistic_regression.ipynb
 04_threshold_tuning_and_regularization.ipynb
-05_tree_based_models.ipynb
+05_tree_based_models_and_model_selection.ipynb
 ```
 
 ### Running the Scoring Script
@@ -193,6 +193,13 @@ The error correlation analysis confirms that the current performance ceiling is 
 Daqing Chen, Sai Liang Sain, and Kun Guo. *Data mining for the online retail industry: A case study of RFM model-based customer segmentation using data mining.* Journal of Database Marketing and Customer Strategy Management, 2012.
 
 UCI Machine Learning Repository: [Online Retail II Dataset](https://archive.ics.uci.edu/dataset/502/online+retail+ii)
+
+---
+
+## Author
+
+Eugene Kim
+[LinkedIn](www.linkedin.com/in/eugenefkim) · [GitHub](https://github.com/eugenefkim)
 
 ---
 

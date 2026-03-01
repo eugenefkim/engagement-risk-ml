@@ -211,3 +211,10 @@ data/
 *.csv
 *.parquet
 *.xlsx
+
+# Model artifacts and scoring outputs
+models/*.pkl
+reports/*.csv
+
+.DS_Store
+**/.DS_Store
