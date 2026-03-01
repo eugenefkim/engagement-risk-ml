@@ -218,3 +218,6 @@ reports/*.csv
 
 .DS_Store
 **/.DS_Store
+
+# Virtual environment for reproducibility testing 
+test_env/
