@@ -10,11 +10,21 @@
 
 ## Project Overview
 
-Customer churn is one of the highest-leverage problems in retail analytics. Identifying at-risk customers before they disengage — and acting on that signal with targeted re-engagement — is consistently more cost-effective than acquiring new customers. This project builds a complete, production-oriented churn prediction system on the [UCI Online Retail II dataset](https://archive.ics.uci.edu/dataset/502/online+retail+ii), a real-world transactional dataset covering ~525,000 orders across ~4,300 customers.
+Customer churn is one of the highest-leverage problems in retail analytics. Identifying at-risk customers before they disengage — and acting on that signal with targeted re-engagement — is consistently more cost-effective than acquiring new customers. This project builds a complete, production-oriented churn prediction system on the [UCI Online Retail II dataset](https://archive.ics.uci.edu/dataset/502/online+retail+ii), a real-world transactional dataset covering two years of retail operations.
 
 The project is structured as a professional ML pipeline rather than a standalone analysis. It covers the full lifecycle: data cleaning, leakage-safe feature engineering using time-series snapshots, baseline heuristic evaluation, logistic regression modeling, threshold tuning, regularization analysis, tree-based model comparison, and a production-ready weekly scoring script. Every modeling decision is grounded in business context — the goal is not just to build a model that scores well, but to build one that can be deployed and trusted.
 
 **Key result:** XGBoost with tuned hyperparameters achieves ROC-AUC of 0.715 and PR-AUC of 0.823, operating at a classification threshold of 0.33 — catching 90.3% of at-risk customers at 75.8% precision, recommended for low-cost re-engagement channels such as email and SMS.
+
+---
+
+## Data Provenance & Specifications
+
+This project utilizes the **Online Retail II** dataset from the UCI Machine Learning Repository, representing real-world transaction logs from a UK-based online retailer. 
+
+* **Temporal Range:** December 2009 - December 2011 
+* **Scale:** ~520,000 transaction records across ~4,300 unique customers
+* **Key Features:** `Invoice`, `StockCode`, `Quantity`, `InvoiceDate`, `Price`, `CustomerID`
 
 ---
 
@@ -42,6 +52,7 @@ engagement-risk-ml/
 │   └── score.py                    # Production weekly scoring script
 │
 ├── .gitignore
+├── LICENSE                         # MIT License
 ├── README.md
 └── requirements.txt
 ```
@@ -107,7 +118,7 @@ Error correlation analysis across all three models rules out stacking as a viabl
 | **High Recall — Broad Outreach** | **0.33** | **75.8%** | **90.3%** | **0.824** | **82.2%** |
 | High Precision — Targeted Outreach | 0.73 | 85.1% | 31.1% | 0.456 | 25.2% |
 
-**Recommended deployment configuration:** XGBoost at t=0.33 for e-commerce re-engagement campaigns using low-cost outreach channels.
+**Recommended deployment configuration:** XGBoost at t = 0.33 for e-commerce re-engagement campaigns using low-cost outreach channels.
 
 ---
 
@@ -143,9 +154,9 @@ through gradient boosting.
 
 ---
 
-## Setup and Usage
+## Installation & Execution
 
-### Requirements
+### Environment Setup
 
 ```bash
 git clone https://github.com/eugenefkim/engagement-risk-ml
@@ -153,9 +164,11 @@ cd engagement-risk-ml
 pip install -r requirements.txt
 ```
 
-### Data
+### Data Acquisition
 
-Download the [UCI Online Retail II dataset](https://archive.ics.uci.edu/dataset/502/online+retail+ii) and place the `.xlsx` file in `data/raw/`.
+1. Download the [UCI Online Retail II dataset](https://archive.ics.uci.edu/dataset/502/online+retail+ii) and 
+
+2. Place the raw `.xlsx` file in `data/raw/` to match the internal path expectations of the processing notebooks.
 
 ### Running the Notebooks
 
