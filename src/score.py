@@ -309,15 +309,9 @@ def score_customers(df, feature_cols, model_path, model_name,
 
     X = df[feature_cols].copy()
 
-    # XGBoost requires feature names in exact training order
-    # Reorder to match training feature sequence if needed
-    try:
-        booster_features = model.get_booster().feature_names
-        if booster_features is not None:
-            X = X[booster_features]
-    except AttributeError:
-        # Not an XGBoost model — logistic regression doesn't need this
-        pass
+    # Align features to the exact schema/order the model was trained on.
+    # This ensures CustomerID is dropped and features are in the correct order for sklearn/XGBoost.
+    X = X[model.feature_names_in_]
 
     proba = model.predict_proba(X)[:, 1]
     prediction = (proba >= threshold).astype(int)
