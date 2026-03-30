@@ -75,8 +75,16 @@ def prompt_choice(message, choices):
 # Step 1 — Configuration
 # ─────────────────────────────────────────────────────────────
 
-def configure():
-    """Interactively collect all scoring parameters from the user."""
+def configure(dataset_last_date):
+    """Interactively collect all scoring parameters from the user.
+
+    Parameters
+    ----------
+    dataset_last_date : pd.Timestamp
+        The most recent transaction date found in the dataset.
+        Used as the default snapshot date so the script aligns
+        with the data's temporal range.
+    """
 
     print("\n" + "=" * 60)
     print(" engagement-risk-ml — Weekly Churn Scoring Script")
@@ -168,17 +176,19 @@ def configure():
         )
 
     # ── Snapshot date ─────────────────────────────────────────
+# ── Snapshot date ─────────────────────────────────────────
     print("\n── Snapshot Date ────────────────────────────────────────")
     print("The snapshot date is the 'as of' date for feature computation.")
     print("Features are computed from orders at or before this date.")
-    print("Default is today's date.")
+    print(f"Default is the dataset's last transaction date: "
+          f"{dataset_last_date.date()}")
     while True:
         raw = input(
-            f"Snapshot date (YYYY-MM-DD) [default: today "
-            f"{datetime.today().strftime('%Y-%m-%d')}]: "
+            f"Snapshot date (YYYY-MM-DD) [default: "
+            f"{dataset_last_date.strftime('%Y-%m-%d')}]: "
         ).strip()
         if raw == "":
-            snapshot_date = pd.Timestamp(datetime.today().date())
+            snapshot_date = pd.Timestamp(dataset_last_date.date())
             break
         try:
             snapshot_date = pd.Timestamp(raw)
@@ -417,17 +427,21 @@ def print_summary(results, config, out_path):
 # ─────────────────────────────────────────────────────────────
 
 def main():
-    # Step 1 — Configure
-    config = configure()
+    # Step 1 — Load data first (needed to derive default snapshot date)
+    print("\n── Loading Data ─────────────────────────────────────────")
+    print("\n[1/5] Loading order data...")
+    orders = load_orders()
+
+    # Derive the dataset's last date for snapshot default
+    dataset_last_date = orders["order_ts"].max()
+
+    # Step 2 — Configure (now with data-aware default)
+    config = configure(dataset_last_date)
 
     print("\n── Running Scoring Pipeline ─────────────────────────────")
 
-    # Step 2 — Load data
-    print("\n[1/4] Loading order data...")
-    orders = load_orders()
-
     # Step 3 — Build features
-    print("\n[2/4] Building snapshot features...")
+    print("\n[2/5] Building snapshot features...")
     feature_df, feature_cols = build_features(
         orders,
         config["snapshot_date"],
@@ -435,7 +449,7 @@ def main():
     )
 
     # Step 4 — Score customers
-    print("\n[3/4] Scoring customers...")
+    print("\n[3/5] Scoring customers...")
     results = score_customers(
         feature_df,
         feature_cols,
@@ -446,12 +460,11 @@ def main():
     )
 
     # Step 5 — Save output
-    print("\n[4/4] Saving output...")
+    print("\n[4/5] Saving output...")
     out_path = save_output(results, config)
 
     # Step 6 — Print summary
     print_summary(results, config, out_path)
-
 
 if __name__ == "__main__":
     main()
