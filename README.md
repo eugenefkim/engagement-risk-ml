@@ -1,6 +1,6 @@
 # engagement-risk-ml
 
-**End-to-end engagement risk / churn prediction pipeline tranforming raw transaction logs into actionable weekly risk scoring — achieving PR-AUC of 0.823 with a tuned XGBoost architecture.**
+**End-to-end engagement risk / churn prediction pipeline transforming raw transaction logs into actionable weekly risk scoring. Project includes leakage-safe RFM feature engineering, interpretable logistic regression analysis, and a tuned XGBoost architecture achieving PR-AUC of 0.823.**
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -62,7 +62,7 @@ engagement-risk-ml/
 ## Methodology and Overview
 
 ### 1. Data Cleansing and Order-Level Aggregation
-The pipeline begins by enforcing strict data quality filters on raw data through various cleansing procedures. These include dropping records with null Customer IDs, restricting dataset to only purchases (excluding returns and cancellations), and normalizing data types (specifically, customer ids and invoice numbers are cast to strings to ensure integrity). 
+The pipeline begins by enforcing strict data quality filters on raw data through various cleansing procedures. These include dropping records with null Customer IDs, restricting dataset to only purchases (excluding returns and cancellations to remove noise), and normalizing data types (specifically, customer ids and invoice numbers are cast to strings to ensure integrity). 
 
 I then aggregate by invoice number to create an order-level table and derive features for total revenue, item quantity, and item diversity per order. 
 
