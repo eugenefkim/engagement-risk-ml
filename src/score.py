@@ -55,13 +55,15 @@ def prompt_float(message, default, min_val=0.0, max_val=1.0):
             print("  Invalid input — please enter a decimal number.")
 
 
-def prompt_choice(message, choices):
+def prompt_choice(message, choices, default=0):
     """Prompt user to select from a numbered list of choices."""
     print(f"\n{message}")
     for i, (label, description) in enumerate(choices, 1):
         print(f"  [{i}] {label} — {description}")
     while True:
-        raw = input("Enter choice number: ").strip()
+        raw = input(f"Enter choice number [default: {default + 1}]: ").strip()
+        if raw == "":
+            return default
         try:
             idx = int(raw) - 1
             if 0 <= idx < len(choices):
@@ -153,19 +155,23 @@ def configure(dataset_last_date):
     # ── Classification threshold ──────────────────────────────
     print("\n── Classification Threshold ─────────────────────────────")
     threshold_idx = prompt_choice(
-        "Select business scenario (determines classification threshold):",
+        "Select business scenario (determines classification threshold):\n"
+        "  Note: High Recall is recommended for this dataset — retail churn\n"
+        "  is best addressed through broad outreach on low-cost channels\n"
+        "  (email, SMS) where the cost of missing a churner outweighs the\n"
+        "  cost of a false alarm.",
         [
+            ("High Recall — Broad Outreach (t=0.33)",
+             "Catches ~90% of churners — best for low-cost channels (email, SMS) [recommended]"),
             ("Balanced — Max F1 (t=0.21)",
              "Flags ~92% of customers — best when no strong cost asymmetry"),
-            ("High Recall — Broad Outreach (t=0.33)",
-             "Catches ~90% of churners — best for low-cost channels (email, SMS)"),
             ("High Precision — Targeted Outreach (t=0.73)",
              "85%+ hit rate — best for expensive interventions (calls, discounts)"),
             ("Custom threshold",
              "Enter your own value between 0.0 and 1.0"),
         ]
     )
-    preset_thresholds = [0.21, 0.33, 0.73]
+    preset_thresholds = [0.33, 0.21, 0.73]
     if threshold_idx < 3:
         threshold = preset_thresholds[threshold_idx]
         print(f"  Using threshold: {threshold}")
