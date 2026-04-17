@@ -163,15 +163,15 @@ def configure(dataset_last_date):
         [
             ("High Recall — Broad Outreach (t=0.33)",
              "Catches ~90% of churners — best for low-cost channels (email, SMS) [recommended]"),
-            ("Balanced — Max F1 (t=0.21)",
-             "Flags ~92% of customers — best when no strong cost asymmetry"),
-            ("High Precision — Targeted Outreach (t=0.73)",
+            ("Balanced — Max F1 (t=0.22)",
+             "Flags ~91% of customers — best when no strong cost asymmetry"),
+            ("High Precision — Targeted Outreach (t=0.75)",
              "85%+ hit rate — best for expensive interventions (calls, discounts)"),
             ("Custom threshold",
              "Enter your own value between 0.0 and 1.0"),
         ]
     )
-    preset_thresholds = [0.33, 0.21, 0.73]
+    preset_thresholds = [0.33, 0.22, 0.75]
     if threshold_idx < 3:
         threshold = preset_thresholds[threshold_idx]
         print(f"  Using threshold: {threshold}")
@@ -182,7 +182,6 @@ def configure(dataset_last_date):
         )
 
     # ── Snapshot date ─────────────────────────────────────────
-# ── Snapshot date ─────────────────────────────────────────
     print("\n── Snapshot Date ────────────────────────────────────────")
     print("The snapshot date is the 'as of' date for feature computation.")
     print("Features are computed from orders at or before this date.")
@@ -248,24 +247,53 @@ def load_orders():
           f"{orders['Customer ID'].nunique():,} customers.")
     return orders
 
+def load_cancellations():
+    """Load cancellation transactions from parquet."""
+    cancel_path = Path("data/processed/cancellations.parquet")
+    if not cancel_path.exists():
+        raise FileNotFoundError(
+            f"Cancellation data not found at {cancel_path}.\n"
+            "Please run notebook 01 first to generate "
+            "the processed data files."
+        )
+    cancellations = pd.read_parquet(cancel_path)
+    cancellations["InvoiceDate"] = pd.to_datetime(cancellations["InvoiceDate"])
+    print(f"  Loaded {len(cancellations):,} cancellation transactions for "
+          f"{cancellations['Customer ID'].nunique():,} customers.")
+    return cancellations
+
 
 # ─────────────────────────────────────────────────────────────
 # Step 3 — Build Features
 # ─────────────────────────────────────────────────────────────
 
-def build_features(orders, snapshot_date, windows=(7, 30, 90)):
+def build_features(orders, cancellations, snapshot_date, windows=(7, 30, 90)):
     """
     Build leakage-safe rolling behavioral features for all active
     customers as of snapshot_date. Mirrors the feature engineering
     pipeline from notebook 02 exactly.
+
+    Cancellation features are computed using only cancellations at or
+    before snapshot_date to prevent temporal leakage.
     """
-    snap_orders = orders[orders["order_ts"] <= snapshot_date].copy()
+    snap_orders  = orders[orders["order_ts"] <= snapshot_date].copy()
+    snap_cancels = cancellations[
+        cancellations["InvoiceDate"] <= snapshot_date
+    ].copy()
 
     if snap_orders.empty:
         raise ValueError(
             f"No orders found at or before {snapshot_date.date()}. "
             "Check your snapshot date."
         )
+
+    # Per-customer cancellation counts up to snapshot_date
+    cancel_counts = (
+        snap_cancels
+        .groupby("Customer ID")["Invoice"]
+        .nunique()
+        .rename("cancel_count")
+    )
 
     features = []
 
@@ -288,6 +316,11 @@ def build_features(orders, snapshot_date, windows=(7, 30, 90)):
         feat["lifetime_orders"]  = len(hist)
         feat["lifetime_revenue"] = hist["total_revenue"].sum()
 
+        # Snapshot-aware cancellation features
+        cc = cancel_counts.get(customer_id, 0)
+        feat["cancel_count"]      = cc
+        feat["cancellation_rate"] = cc / len(hist) if len(hist) > 0 else 0.0
+
         features.append(feat)
 
     feature_cols = (
@@ -295,7 +328,8 @@ def build_features(orders, snapshot_date, windows=(7, 30, 90)):
         [f"orders_{w}d"  for w in windows] +
         [f"revenue_{w}d" for w in windows] +
         [f"items_{w}d"   for w in windows] +
-        ["lifetime_orders", "lifetime_revenue"]
+        ["lifetime_orders", "lifetime_revenue",
+         "cancel_count", "cancellation_rate"]
     )
 
     df = pd.DataFrame(features)
@@ -435,8 +469,9 @@ def print_summary(results, config, out_path):
 def main():
     # Step 1 — Load data first (needed to derive default snapshot date)
     print("\n── Loading Data ─────────────────────────────────────────")
-    print("\n[1/5] Loading order data...")
-    orders = load_orders()
+    print("\n[1/5] Loading order and cancellation data...")
+    orders        = load_orders()
+    cancellations = load_cancellations()
 
     # Derive the dataset's last date for snapshot default
     dataset_last_date = orders["order_ts"].max()
@@ -450,6 +485,7 @@ def main():
     print("\n[2/5] Building snapshot features...")
     feature_df, feature_cols = build_features(
         orders,
+        cancellations,
         config["snapshot_date"],
         config["windows"]
     )
