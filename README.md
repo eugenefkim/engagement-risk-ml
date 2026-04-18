@@ -1,6 +1,6 @@
 # engagement-risk-ml
 
-**End-to-end engagement risk / churn prediction pipeline transforming raw transaction logs into actionable weekly risk scoring. Project includes leakage-safe RFM feature engineering, interpretable logistic regression analysis, and a tuned XGBoost architecture achieving PR-AUC of 0.823.**
+**End-to-end engagement risk / churn prediction pipeline transforming raw transaction logs into actionable weekly risk scoring. Project includes leakage-safe RFM + dissatisfaction signal feature engineering, interpretable logistic regression analysis, and a tuned XGBoost architecture achieving PR-AUC of 0.823. Feature importance analysis identified anonymous return transactions as the single highest-value data quality improvement for future model iterations.**
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -61,18 +61,18 @@ engagement-risk-ml/
 
 ## Methodology and Overview
 
-### 1. Data Cleansing and Order-Level Aggregation
-The pipeline begins by enforcing strict data quality filters on raw data through various cleansing procedures. These include dropping records with null Customer IDs, restricting dataset to only purchases (excluding returns and cancellations to remove noise), and normalizing data types (specifically, customer ids and invoice numbers are cast to strings to ensure integrity). 
+### 1. Data Cleansing, Order-Level Aggregation, and Dissatisfaction Signal Extraction
+The pipeline begins by enforcing strict data quality filters on raw transaction data. Null Customer ID rows (~108k, ~20% of the dataset) are dropped as they cannot be tied to a customer. Rather than discarding all transaction reversals, the cleaning step separates C-prefix cancellation invoices into a dedicated `cancellations.parquet` dataset for downstream feature engineering.
 
-I then aggregate by invoice number to create an order-level table and derive features for total revenue, item quantity, and item diversity per order. 
+Diagnostic analysis of the filtered records established three key findings: (1) line-item returns with negative quantities on non-C invoices are entirely anonymous — all 2,121 such records have null Customer IDs and are unusable for customer-level modeling; (2) C-prefix cancellations are the only viable dissatisfaction signal, covering 1,798 identifiable customers; (3) 96.2% of cancelling customers also appear in the gross purchase population, confirming high feature coverage.
 
->Note on Filtered Data: To establish a clean "Gross Purchase" baseline, this core pipeline excludes transaction reversals (cancellations and returns). While this removes noise for the initial model, it likely omits a high-velocity signal regarding customer dissatisfaction. See Future Work & Limitations for the planned integration of "Net Engagement" metrics.
+Gross purchases are aggregated by invoice number to create an order-level table with total revenue, item quantity, and item diversity per order. Cancellation features are computed separately in a leakage-safe, snapshot-aware manner in notebook 02.
 
 ### 2. Leakage-Safe Snapshot-Based Labeling 
 To prevent **data leakage**, or the accidental use of future information to predict the past, this project uses a **snapshot-based labeling approach**. For each weekly snapshot date, features are computed exclusively from orders at or before that date, and the churn label is defined by whether the customer makes a purchase in the 30 days following the snapshot. Every row in the modeling dataset represents "what did we know about customer C at time T, and did they churn in the next 30 days?" The train/test split further enforces temporal integrity by using the final 20% of snapshots as the held-out test set rather than random sampling.
 
-### 3. RFM-Centered Feature Engineering
-Twelve behavioral features are constructed across three time windows:
+### 3. RFM-Centered Feature Engineering with Dissatisfaction Signals
+Fourteen behavioral features are constructed across three time windows, including two snapshot-aware cancellation features:
 
 | Window | Features |
 |---|---|
@@ -81,6 +81,9 @@ Twelve behavioral features are constructed across three time windows:
 | 90-day (long-term) | orders_90d, revenue_90d, items_90d |
 | Lifetime | lifetime_orders, lifetime_revenue |
 | Recency | recency_days |
+| Dissatisfaction | cancel_count, cancellation_rate |
+
+Cancellation features are computed at each snapshot date using only cancellations at or before that date, preventing temporal leakage. `cancellation_rate` (cancellations / lifetime orders) is preferred over raw count to normalize for customer activity level.
 
 The churn base rate in the dataset is approximately 69% — a highly imbalanced problem that motivates careful metric selection and class-weight balancing throughout the modeling work.
 
@@ -94,7 +97,7 @@ A logistic regression pipeline with StandardScaler and balanced class weights is
 The default classification threshold of 0.5 is shown to be suboptimal — the max F1 threshold is 0.21, substantially lower due to balanced class weights shifting the model's probability outputs. Three business operating points are identified and compared: Balanced (Max F1), High Recall for broad outreach, and High Precision for targeted interventions.
 
 ### 7. Regularization Analysis
-L1 (Lasso), L2 (Ridge), and ElasticNet penalties are compared across six orders of magnitude of regularization strength. All three penalties converge to equivalent performance past C=0.01, confirming the baseline model is stable and well-calibrated. L1 at its optimal C eliminates 4 of 12 features — revenue_7d, orders_30d, revenue_30d, and lifetime_revenue — achieving equivalent performance with a sparser model that directly validates the multicollinearity findings.
+L1 (Lasso), L2 (Ridge), and ElasticNet penalties are compared across six orders of magnitude of regularization strength. All three penalties converge to equivalent performance past C=0.01, confirming the baseline model is stable and well-calibrated. L1 at its optimal C eliminates 4 of 14 features — revenue_7d, orders_30d, revenue_30d, and lifetime_revenue — achieving equivalent performance with a sparser 10-feature model. Both cancellation features survived L1 selection, confirming they carry genuinely independent signal not captured by the existing RFM features.
 
 ### 8. Tree-Based Model Comparison
 Random Forest and XGBoost are trained using RandomizedSearchCV with TimeSeriesSplit cross-validation, optimizing for PR-AUC. Random Forest matches but does not beat logistic regression, suggesting the signal is predominantly linear and not well-suited to parallel ensemble averaging. XGBoost outperforms both with a well-regularized shallow-tree configuration, confirming that sequential error-correction extracts residual nonlinear signal that parallel ensembles and linear models both miss.
@@ -110,17 +113,17 @@ Error correlation analysis across all three models rules out stacking as a viabl
 
 | Model | ROC-AUC | PR-AUC |
 |---|---|---|
-| Logistic Regression (Baseline) | 0.699 | 0.810 |
-| Random Forest (Tuned) | 0.693 | 0.813 |
+| Logistic Regression (Baseline) | 0.699 | 0.812 |
+| Random Forest (Tuned) | 0.700 | 0.817 |
 | **XGBoost (Tuned)** | **0.715** | **0.823** |
 
 ### XGBoost Business Scenario Comparison (Threshold Tuning)
 
 | Scenario | Threshold | Precision | Recall | F1 | % Flagged |
 |---|---|---|---|---|---|
-| Balanced (Max F1) | 0.21 | 72.9% | 97.1% | 0.833 | 91.8% |
-| **High Recall — Broad Outreach** | **0.33** | **75.8%** | **90.3%** | **0.824** | **82.2%** |
-| High Precision — Targeted Outreach | 0.73 | 85.1% | 31.1% | 0.456 | 25.2% |
+| Balanced (Max F1) | 0.20 | 72.7% | 97.5% | 0.833 | 92.4% |
+| **High Recall — Broad Outreach** | **0.33** | **75.7%** | **90.5%** | **0.825** | **82.5%** |
+| High Precision — Targeted Outreach | 0.72 | 85.0% | 32.3% | 0.468 | 26.2% |
 
 **Recommended deployment configuration:** XGBoost at t = 0.33 for e-commerce re-engagement campaigns using low-cost outreach channels.
 
@@ -136,9 +139,13 @@ Error correlation analysis across all three models rules out stacking as a viabl
 
 - **The right kind of complexity matters more than the amount.** Random Forest with unlimited tree depth failed to beat logistic regression. XGBoost with shallow trees and a low learning rate succeeded. Sequential error-correction extracts nonlinear signal more efficiently than parallel averaging when the signal is predominantly linear.
 
-- **Stacking is ruled out by error correlation, not assumption.** A quantitative error correlation analysis shows LR/XGBoost errors correlate at 0.756, and 16.09% of customers are misclassified by all three models — confirming that the performance ceiling is a feature limitation, not a modeling limitation.
+- **Stacking is ruled out by error correlation, not assumption.** A quantitative error correlation analysis shows LR/XGBoost errors correlate at 0.749, and 16.09% of customers are misclassified by all three models — confirming that the performance ceiling is a feature limitation, not a modeling limitation.
 
 - **The model achieves ~84% of theoretical maximum lift** given the ~69% base churn rate. With a high base rate, the headroom for lift is mathematically constrained — framing performance relative to the theoretical ceiling is a more honest and informative evaluation than raw lift magnitude.
+
+- **Cancellation features survive L1 selection despite sparse coverage.** Both `cancel_count` and `cancellation_rate` were retained by L1 regularization at optimal C, confirming they carry genuinely independent signal beyond the RFM feature set. `cancellation_rate` VIF of 2.05 confirmed orthogonality to all existing features.
+
+- **Anonymous returns are the single highest-value data quality gap.** XGBoost feature importance analysis shows `cancel_count` ranks 2nd in cover — meaning the model uses cancellation history as a broad population segmentation signal across many trees. However, 2,121 line-item return records are entirely anonymous and unusable, and only 1,798 of ~4,312 customers have identifiable cancellation history. The gap between high cover and moderate gain in XGBoost directly indicates incomplete signal: the model architecture is primed to exploit richer dissatisfaction data if customer identification on return transactions were available.
 
 ---
 
@@ -151,7 +158,7 @@ this is one of the most well-established empirical findings in applied
 ML, supported by extensive benchmarking on real-world tabular datasets. 
 Neural networks derive their power from learning representations from 
 raw, high-dimensional inputs (pixels, text, audio) where feature 
-engineering is impractical. With 12 hand-engineered behavioral features 
+engineering is impractical. With 14 hand-engineered behavioral features 
 and ~80,000 rows, there is no representational complexity for a neural 
 network to exploit that XGBoost cannot already capture more efficiently 
 through gradient boosting.
@@ -200,10 +207,10 @@ The script will prompt you to configure the prediction horizon, feature windows,
 
 The current performance ceiling (PR-AUC: 0.823) is likely driven by feature limitations rather than algorithmic choices. To drive meaningful lift, the next iteration will focus on behavioral enrichment and productionization.
 
-#### 1. Planned Feature Enrichment
-* **Net Engagement Risk:** I will transition modeling from "Gross" to "Net"  by incorporating `return_rate`, `cancellation_velocity`, and `net_revenue`.
+#### 1. Feature Enrichment
+* **Improved Cancellation Signal Coverage:** The current pipeline captures cancellation behavior for only ~42% of the active customer population due to anonymous return transactions. Improving customer identification on return and cancellation records — through loyalty program linkage, payment fingerprinting, or session matching — is the single highest-value data quality investment for future model iterations. XGBoost feature importance analysis directly supports this: `cancel_count` ranks 2nd in cover despite moderate gain, indicating the model is structurally primed to exploit a richer signal.
 * **Behavioral Signals:** Integrate session-level data and product category affinity to capture "intent" signals before a transaction occurs.
-* **Architecture Re-evaluation:** Re-test Gradient Boosting and regularized Deep Learning architectures once the expanded feature set is available.
+* **Architecture Re-evaluation:** Re-test with expanded feature set once behavioral enrichment is available.
 
 #### 2. Productionization Path
 * **Inference API:** Wrap `score.py` in a **FastAPI** REST interface for real-time risk scoring.
