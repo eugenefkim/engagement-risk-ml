@@ -40,8 +40,8 @@ engagement-risk-ml/
 ├── models/                         # Serialized model artifacts (.pkl, gitignored)
 │
 ├── notebooks/
-│   ├── 01_eda.ipynb                # Exploratory data analysis and order table construction
-│   ├── 02_labeling_and_features.ipynb  # Snapshot labeling and feature engineering
+│   ├── 01_eda.ipynb                # EDA, cancellation signal diagnosis, order table construction
+│   ├── 02_labeling_and_features.ipynb  # Snapshot labeling and leakage-safe feature engineering
 │   ├── 03_modeling_logistic_regression.ipynb  # Baseline model, lift analysis, multicollinearity
 │   ├── 04_threshold_tuning_and_regularization.ipynb  # Threshold sweep, L1/L2/ElasticNet comparison
 │   └── 05_tree_based_models_and_model_selection.ipynb  # Random Forest, XGBoost, model comparison, stacking analysis
@@ -50,6 +50,9 @@ engagement-risk-ml/
 │
 ├── src/
 │   └── score.py                    # Production weekly scoring script
+│
+├── tests/
+│   └── test_score.py               # Unit tests for score.py feature engineering pipeline
 │
 ├── .gitignore
 ├── LICENSE                         # MIT License
